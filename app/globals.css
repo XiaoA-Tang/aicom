@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #f7f7f4;
+  color: #191a17;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(180, 83, 59, 0.08), transparent 280px),
+    linear-gradient(180deg, rgba(15, 118, 110, 0.08), transparent 360px),
+    #f7f7f4;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+textarea {
+  resize: none;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 1rem;
+  background: rgba(25, 26, 23, 0.35);
+}
+
+.settings-dialog {
+  display: flex;
+  width: 100%;
+  max-width: 42rem;
+  max-height: calc(100vh - 2rem);
+  flex-direction: column;
+  border: 1px solid #dfdfd8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 55px rgba(18, 25, 22, 0.08);
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+}
+
+.voice-ring::before,
+.voice-ring::after {
+  position: absolute;
+  inset: 20px;
+  content: "";
+  border: 1px solid rgba(180, 83, 59, 0.45);
+  border-radius: 9999px;
+  animation: voice-pulse 1.5s ease-out infinite;
+}
+
+.voice-ring::after {
+  animation-delay: 0.45s;
+}
+
+@keyframes voice-pulse {
+  from {
+    opacity: 0.75;
+    transform: scale(0.78);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.34);
+  }
+}
