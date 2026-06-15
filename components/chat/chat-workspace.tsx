@@ -125,6 +125,7 @@ export function ChatWorkspace() {
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState("");
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(null);
   const [settingsStatus, setSettingsStatus] = useState<string | null>(null);
@@ -144,18 +145,23 @@ export function ChatWorkspace() {
   const canSaveSettings =
     settingsCharCount >= 20 && settingsCharCount <= 4000 && !isSavingSettings;
 
-  async function openSettings() {
-    setIsSettingsOpen(true);
+  function getAdminHeaders(password = adminPassword) {
+    return password.trim()
+      ? {
+          "x-admin-password": password.trim()
+        }
+      : undefined;
+  }
+
+  async function loadSettings(password = adminPassword) {
+    setIsLoadingSettings(true);
     setSettingsStatus(null);
 
-    if (settingsDraft) {
-      return;
-    }
-
-    setIsLoadingSettings(true);
-
     try {
-      const response = await fetch("/api/settings", { cache: "no-store" });
+      const response = await fetch("/api/settings", {
+        cache: "no-store",
+        headers: getAdminHeaders(password)
+      });
       const data = (await response.json()) as ConversationSettingsResponse;
 
       if (!response.ok) {
@@ -165,6 +171,9 @@ export function ChatWorkspace() {
       setSettingsDraft(data.systemPrompt);
       setDefaultSystemPrompt(data.defaultSystemPrompt);
       setSettingsUpdatedAt(data.updatedAt);
+      if (password.trim()) {
+        window.sessionStorage.setItem("aicom-admin-password", password.trim());
+      }
     } catch (caught) {
       const problem =
         caught instanceof Error ? caught.message : "后台设置读取失败，请稍后重试";
@@ -174,6 +183,19 @@ export function ChatWorkspace() {
     }
   }
 
+  async function openSettings() {
+    setIsSettingsOpen(true);
+    setSettingsStatus(null);
+
+    if (settingsDraft) {
+      return;
+    }
+
+    const savedPassword = window.sessionStorage.getItem("aicom-admin-password") || "";
+    setAdminPassword(savedPassword);
+    await loadSettings(savedPassword);
+  }
+
   async function saveSettings() {
     setIsSavingSettings(true);
     setSettingsStatus(null);
@@ -181,7 +203,10 @@ export function ChatWorkspace() {
     try {
       const response = await fetch("/api/settings", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAdminHeaders()
+        },
         body: JSON.stringify({ systemPrompt: settingsDraft })
       });
       const data = (await response.json()) as ConversationSettingsResponse;
@@ -755,9 +780,31 @@ export function ChatWorkspace() {
               <label className="text-sm font-medium" htmlFor="system-prompt">
                 对话提示词
               </label>
+              <div className="mb-3 mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="h-10 flex-1 rounded-[8px] border border-line bg-white px-3 text-sm outline-none transition placeholder:text-muted focus:border-accent"
+                  placeholder="后台密码"
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                />
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] border border-line px-3 text-sm text-muted transition hover:border-accent hover:text-accent disabled:cursor-wait disabled:opacity-60"
+                  disabled={isLoadingSettings}
+                  type="button"
+                  onClick={() => void loadSettings()}
+                >
+                  {isLoadingSettings ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Settings className="h-4 w-4" />
+                  )}
+                  读取
+                </button>
+              </div>
               <textarea
                 className="mt-2 min-h-[300px] w-full rounded-[8px] border border-line bg-[#fbfbf8] px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-muted focus:border-accent disabled:cursor-wait disabled:opacity-70"
-                disabled={isLoadingSettings}
+                disabled={isLoadingSettings || !settingsDraft}
                 id="system-prompt"
                 value={settingsDraft}
                 onChange={(event) => setSettingsDraft(event.target.value)}
