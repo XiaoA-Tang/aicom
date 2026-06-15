@@ -35,7 +35,7 @@ export async function synthesizeWithDashScope(
   const { default: WebSocket } = await import("ws");
   const apiKey = getServerEnv("DASHSCOPE_API_KEY");
   const url = getOptionalServerEnv("TTS_BASE_URL", DEFAULT_URL);
-  const model = getOptionalServerEnv("TTS_MODEL", "cosyvoice-v3-flash");
+  const model = input.model || getOptionalServerEnv("TTS_MODEL", "cosyvoice-v3-flash");
   const voice = input.voice || getOptionalServerEnv("TTS_VOICE", "longanyang");
   const format = input.format || getOptionalServerEnv("TTS_FORMAT", "mp3");
   const text = input.text.trim();

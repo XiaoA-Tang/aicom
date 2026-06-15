@@ -41,9 +41,19 @@ type VoiceState = "idle" | "listening" | "processing" | "unsupported";
 
 type ConversationSettingsResponse = {
   systemPrompt: string;
+  tts: TtsSettingsDraft;
   defaultSystemPrompt: string;
+  defaultTts: TtsSettingsDraft;
   updatedAt: string;
   error?: string;
+};
+
+type TtsSettingsDraft = {
+  model: "qwen3-tts-flash-realtime" | "qwen3-tts-instruct-flash-realtime";
+  voice: string;
+  languageType: "Auto" | "Chinese" | "English" | "Japanese" | "Korean";
+  format: "wav";
+  instructions: string;
 };
 
 type BrowserSpeechRecognition = {
@@ -90,6 +100,27 @@ const samplePrompts = [
   "用朋友聊天的语气鼓励我一下。"
 ];
 
+const defaultTtsDraft: TtsSettingsDraft = {
+  format: "wav",
+  instructions: "",
+  languageType: "Chinese",
+  model: "qwen3-tts-flash-realtime",
+  voice: "Maia"
+};
+
+const ttsModelOptions: TtsSettingsDraft["model"][] = [
+  "qwen3-tts-flash-realtime",
+  "qwen3-tts-instruct-flash-realtime"
+];
+
+const ttsLanguageOptions: TtsSettingsDraft["languageType"][] = [
+  "Chinese",
+  "Auto",
+  "English",
+  "Japanese",
+  "Korean"
+];
+
 function createId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -125,8 +156,11 @@ export function ChatWorkspace() {
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState("");
+  const [ttsDraft, setTtsDraft] = useState<TtsSettingsDraft>(defaultTtsDraft);
   const [adminPassword, setAdminPassword] = useState("");
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState("");
+  const [defaultTtsSettings, setDefaultTtsSettings] =
+    useState<TtsSettingsDraft>(defaultTtsDraft);
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState<string | null>(null);
   const [settingsStatus, setSettingsStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -142,8 +176,13 @@ export function ChatWorkspace() {
   );
   const visibleTranscript = interimTranscript || "按住说话，松开发送";
   const settingsCharCount = settingsDraft.trim().length;
+  const ttsInstructionsCount = ttsDraft.instructions.trim().length;
   const canSaveSettings =
-    settingsCharCount >= 20 && settingsCharCount <= 4000 && !isSavingSettings;
+    settingsCharCount >= 20 &&
+    settingsCharCount <= 4000 &&
+    ttsDraft.voice.trim().length >= 2 &&
+    ttsInstructionsCount <= 300 &&
+    !isSavingSettings;
 
   function getAdminHeaders(password = adminPassword) {
     return password.trim()
@@ -169,7 +208,9 @@ export function ChatWorkspace() {
       }
 
       setSettingsDraft(data.systemPrompt);
+      setTtsDraft(data.tts || defaultTtsDraft);
       setDefaultSystemPrompt(data.defaultSystemPrompt);
+      setDefaultTtsSettings(data.defaultTts || defaultTtsDraft);
       setSettingsUpdatedAt(data.updatedAt);
       if (password.trim()) {
         window.sessionStorage.setItem("aicom-admin-password", password.trim());
@@ -207,7 +248,7 @@ export function ChatWorkspace() {
           "Content-Type": "application/json",
           ...getAdminHeaders()
         },
-        body: JSON.stringify({ systemPrompt: settingsDraft })
+        body: JSON.stringify({ systemPrompt: settingsDraft, tts: ttsDraft })
       });
       const data = (await response.json()) as ConversationSettingsResponse;
 
@@ -216,7 +257,9 @@ export function ChatWorkspace() {
       }
 
       setSettingsDraft(data.systemPrompt);
+      setTtsDraft(data.tts || defaultTtsDraft);
       setDefaultSystemPrompt(data.defaultSystemPrompt);
+      setDefaultTtsSettings(data.defaultTts || defaultTtsDraft);
       setSettingsUpdatedAt(data.updatedAt);
       setSettingsStatus("已保存，下一轮对话生效");
     } catch (caught) {
@@ -234,7 +277,18 @@ export function ChatWorkspace() {
     }
 
     setSettingsDraft(defaultSystemPrompt);
+    setTtsDraft(defaultTtsSettings);
     setSettingsStatus("已恢复默认内容，保存后生效");
+  }
+
+  function updateTtsDraft<K extends keyof TtsSettingsDraft>(
+    key: K,
+    value: TtsSettingsDraft[K]
+  ) {
+    setTtsDraft((current) => ({
+      ...current,
+      [key]: value
+    }));
   }
 
   async function sendMessage(userText: string, options?: { autoSpeak?: boolean }) {
@@ -743,7 +797,9 @@ export function ChatWorkspace() {
               </div>
               <div className="rounded-[8px] border border-line px-3 py-2">
                 <div>语音回复</div>
-                <div className="mt-1 font-medium text-ink">Qwen-TTS</div>
+                <div className="mt-1 font-medium text-ink">
+                  Qwen-TTS · {ttsDraft.voice || "Maia"}
+                </div>
               </div>
             </div>
 
@@ -812,6 +868,103 @@ export function ChatWorkspace() {
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                 <span>{settingsCharCount}/4000</span>
                 <span>20 字以上可保存</span>
+              </div>
+              <div className="mt-5 border-t border-line pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-ink">TTS 参数</h3>
+                    <p className="mt-1 text-xs text-muted">
+                      这些设置只影响语音合成，不会暴露 API key。
+                    </p>
+                  </div>
+                  <span className="rounded-[8px] border border-line px-2 py-1 text-xs text-muted">
+                    {ttsDraft.voice || "Maia"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-medium text-muted">
+                    模型
+                    <select
+                      className="mt-1 h-10 w-full rounded-[8px] border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                      disabled={isLoadingSettings || !settingsDraft}
+                      value={ttsDraft.model}
+                      onChange={(event) =>
+                        updateTtsDraft(
+                          "model",
+                          event.target.value as TtsSettingsDraft["model"]
+                        )
+                      }
+                    >
+                      {ttsModelOptions.map((model) => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-muted">
+                    音色
+                    <input
+                      className="mt-1 h-10 w-full rounded-[8px] border border-line bg-white px-3 text-sm text-ink outline-none transition placeholder:text-muted focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                      disabled={isLoadingSettings || !settingsDraft}
+                      placeholder="Maia"
+                      value={ttsDraft.voice}
+                      onChange={(event) => updateTtsDraft("voice", event.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-muted">
+                    语言
+                    <select
+                      className="mt-1 h-10 w-full rounded-[8px] border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                      disabled={isLoadingSettings || !settingsDraft}
+                      value={ttsDraft.languageType}
+                      onChange={(event) =>
+                        updateTtsDraft(
+                          "languageType",
+                          event.target.value as TtsSettingsDraft["languageType"]
+                        )
+                      }
+                    >
+                      {ttsLanguageOptions.map((language) => (
+                        <option key={language} value={language}>
+                          {language}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-muted">
+                    音频格式
+                    <select
+                      className="mt-1 h-10 w-full rounded-[8px] border border-line bg-white px-3 text-sm text-ink outline-none transition focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                      disabled={isLoadingSettings || !settingsDraft}
+                      value={ttsDraft.format}
+                      onChange={(event) =>
+                        updateTtsDraft(
+                          "format",
+                          event.target.value as TtsSettingsDraft["format"]
+                        )
+                      }
+                    >
+                      <option value="wav">wav</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="mt-3 block text-xs font-medium text-muted">
+                  语音指令
+                  <textarea
+                    className="mt-1 min-h-[92px] w-full rounded-[8px] border border-line bg-[#fbfbf8] px-3 py-2 text-sm leading-6 text-ink outline-none transition placeholder:text-muted focus:border-accent disabled:cursor-wait disabled:opacity-70"
+                    disabled={isLoadingSettings || !settingsDraft}
+                    placeholder="仅 qwen3-tts-instruct-flash-realtime 生效，例如：自然日常聊天，语速稍慢，温柔但不要播音腔。"
+                    value={ttsDraft.instructions}
+                    onChange={(event) =>
+                      updateTtsDraft("instructions", event.target.value)
+                    }
+                  />
+                </label>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                  <span>{ttsInstructionsCount}/300</span>
+                  <span>Maia 是 Qwen-TTS 的四月音色</span>
+                </div>
               </div>
               {settingsStatus && (
                 <div className="mt-3 rounded-[8px] border border-line bg-surface px-3 py-2 text-sm text-ink">

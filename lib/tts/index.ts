@@ -3,8 +3,11 @@ import { synthesizeWithDashScopeQwenRealtime } from "@/lib/tts/providers/dashsco
 
 export type SynthesizeSpeechInput = {
   text: string;
+  model?: string;
   voice?: string;
+  languageType?: string;
   format?: "mp3" | "wav" | "opus";
+  instructions?: string;
 };
 
 export type SynthesizeSpeechOutput = {

@@ -3,11 +3,21 @@ import path from "node:path";
 
 export type ConversationSettings = {
   systemPrompt: string;
+  tts: TtsSettings;
   updatedAt: string;
 };
 
 export type ConversationSettingsResponse = ConversationSettings & {
   defaultSystemPrompt: string;
+  defaultTts: TtsSettings;
+};
+
+export type TtsSettings = {
+  model: "qwen3-tts-flash-realtime" | "qwen3-tts-instruct-flash-realtime";
+  voice: string;
+  languageType: "Auto" | "Chinese" | "English" | "Japanese" | "Korean";
+  format: "wav";
+  instructions: string;
 };
 
 export const DEFAULT_SYSTEM_PROMPT = [
@@ -24,6 +34,15 @@ const SETTINGS_DIR = path.join(process.cwd(), ".data");
 const SETTINGS_FILE = path.join(SETTINGS_DIR, "conversation-settings.json");
 const MIN_PROMPT_LENGTH = 20;
 const MAX_PROMPT_LENGTH = 4000;
+const MAX_TTS_INSTRUCTIONS_LENGTH = 300;
+
+export const DEFAULT_TTS_SETTINGS: TtsSettings = {
+  format: "wav",
+  instructions: "",
+  languageType: "Chinese",
+  model: "qwen3-tts-flash-realtime",
+  voice: "Maia"
+};
 
 export function normalizeSystemPrompt(value: unknown) {
   if (typeof value !== "string") {
@@ -43,9 +62,95 @@ export function normalizeSystemPrompt(value: unknown) {
   return prompt;
 }
 
+export function normalizeTtsSettings(value: unknown): TtsSettings {
+  const raw =
+    value && typeof value === "object"
+      ? (value as Partial<Record<keyof TtsSettings, unknown>>)
+      : {};
+
+  const model = normalizeChoice(
+    raw.model,
+    ["qwen3-tts-flash-realtime", "qwen3-tts-instruct-flash-realtime"],
+    DEFAULT_TTS_SETTINGS.model,
+    "Unsupported TTS model"
+  );
+  const voice = normalizeVoice(raw.voice);
+  const languageType = normalizeChoice(
+    raw.languageType,
+    ["Auto", "Chinese", "English", "Japanese", "Korean"],
+    DEFAULT_TTS_SETTINGS.languageType,
+    "Unsupported TTS language"
+  );
+  const format = normalizeChoice(
+    raw.format,
+    ["wav"],
+    DEFAULT_TTS_SETTINGS.format,
+    "Unsupported TTS format"
+  );
+  const instructions =
+    typeof raw.instructions === "string" ? raw.instructions.trim() : "";
+
+  if (instructions.length > MAX_TTS_INSTRUCTIONS_LENGTH) {
+    throw new Error(
+      `TTS instructions cannot exceed ${MAX_TTS_INSTRUCTIONS_LENGTH} characters`
+    );
+  }
+
+  return {
+    format,
+    instructions,
+    languageType,
+    model,
+    voice
+  };
+}
+
+function normalizeChoice<const T extends string>(
+  value: unknown,
+  choices: readonly T[],
+  fallback: T,
+  errorMessage: string
+) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(errorMessage);
+  }
+
+  const trimmed = value.trim();
+  const matched = choices.find((choice) => choice === trimmed);
+
+  if (!matched) {
+    throw new Error(errorMessage);
+  }
+
+  return matched;
+}
+
+function normalizeVoice(value: unknown) {
+  if (value === undefined || value === null || value === "") {
+    return DEFAULT_TTS_SETTINGS.voice;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error("TTS voice must be text");
+  }
+
+  const voice = value.trim();
+
+  if (!/^[A-Za-z][A-Za-z0-9_-]{1,63}$/.test(voice)) {
+    throw new Error("TTS voice must be 2-64 letters, numbers, underscores or dashes");
+  }
+
+  return voice;
+}
+
 export function createDefaultConversationSettings(): ConversationSettings {
   return {
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    tts: DEFAULT_TTS_SETTINGS,
     updatedAt: new Date(0).toISOString()
   };
 }
@@ -55,7 +160,8 @@ export function toSettingsResponse(
 ): ConversationSettingsResponse {
   return {
     ...settings,
-    defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT
+    defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+    defaultTts: DEFAULT_TTS_SETTINGS
   };
 }
 
@@ -65,6 +171,7 @@ export async function getConversationSettings(): Promise<ConversationSettings> {
     const parsed = JSON.parse(raw) as Partial<ConversationSettings>;
     return {
       systemPrompt: normalizeSystemPrompt(parsed.systemPrompt),
+      tts: normalizeTtsSettings(parsed.tts),
       updatedAt:
         typeof parsed.updatedAt === "string"
           ? parsed.updatedAt
@@ -87,10 +194,12 @@ export async function getConversationSettings(): Promise<ConversationSettings> {
 }
 
 export async function saveConversationSettings(
-  value: unknown
+  value: unknown,
+  ttsValue?: unknown
 ): Promise<ConversationSettings> {
   const settings = {
     systemPrompt: normalizeSystemPrompt(value),
+    tts: normalizeTtsSettings(ttsValue),
     updatedAt: new Date().toISOString()
   };
 

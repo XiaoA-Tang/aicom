@@ -17,6 +17,14 @@ const DEFAULT_REALTIME_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime";
 const DEFAULT_MODEL = "qwen3-tts-flash-realtime";
 const DEFAULT_SAMPLE_RATE = 24000;
 
+type QwenRealtimeSessionUpdateInput = {
+  model: string;
+  voice: string;
+  languageType: string;
+  sampleRate: number;
+  instructions?: string;
+};
+
 export function buildQwenRealtimeUrl(baseUrl: string, model: string) {
   const url = new URL(baseUrl);
 
@@ -27,6 +35,35 @@ export function buildQwenRealtimeUrl(baseUrl: string, model: string) {
   return url.toString();
 }
 
+export function buildQwenRealtimeSessionUpdate(
+  input: QwenRealtimeSessionUpdateInput
+) {
+  const session: {
+    mode: "server_commit";
+    voice: string;
+    language_type: string;
+    response_format: "pcm";
+    sample_rate: number;
+    instructions?: string;
+  } = {
+    mode: "server_commit",
+    voice: input.voice,
+    language_type: input.languageType,
+    response_format: "pcm",
+    sample_rate: input.sampleRate
+  };
+  const instructions = input.instructions?.trim();
+
+  if (input.model === "qwen3-tts-instruct-flash-realtime" && instructions) {
+    session.instructions = instructions;
+  }
+
+  return {
+    type: "session.update",
+    session
+  };
+}
+
 export async function synthesizeWithDashScopeQwenRealtime(
   input: SynthesizeSpeechInput
 ): Promise<SynthesizeSpeechOutput> {
@@ -35,11 +72,14 @@ export async function synthesizeWithDashScopeQwenRealtime(
 
   const { default: WebSocket } = await import("ws");
   const apiKey = getServerEnv("DASHSCOPE_API_KEY");
-  const model = getOptionalServerEnv("TTS_MODEL", DEFAULT_MODEL);
+  const model = input.model || getOptionalServerEnv("TTS_MODEL", DEFAULT_MODEL);
   const baseUrl = getOptionalServerEnv("TTS_BASE_URL", DEFAULT_REALTIME_URL);
   const url = buildQwenRealtimeUrl(baseUrl, model);
   const voice = input.voice || getOptionalServerEnv("TTS_VOICE", "Cherry");
-  const languageType = getOptionalServerEnv("TTS_LANGUAGE", "Chinese");
+  const languageType =
+    input.languageType || getOptionalServerEnv("TTS_LANGUAGE", "Chinese");
+  const instructions =
+    input.instructions || getOptionalServerEnv("TTS_INSTRUCTIONS", "");
   const text = input.text.trim();
 
   if (!text) {
@@ -88,16 +128,15 @@ export async function synthesizeWithDashScopeQwenRealtime(
     }
 
     socket.on("open", () => {
-      sendJson({
-        type: "session.update",
-        session: {
-          mode: "server_commit",
-          voice,
-          language_type: languageType,
-          response_format: "pcm",
-          sample_rate: DEFAULT_SAMPLE_RATE
-        }
-      });
+      sendJson(
+        buildQwenRealtimeSessionUpdate({
+          instructions,
+          languageType,
+          model,
+          sampleRate: DEFAULT_SAMPLE_RATE,
+          voice
+        })
+      );
     });
 
     socket.on("message", (data: WebSocketBinaryData, isBinary: boolean) => {

@@ -24,8 +24,11 @@ export async function PUT(request: Request) {
       return Response.json({ error: auth.error }, { status: auth.status });
     }
 
-    const body = (await request.json()) as { systemPrompt?: unknown };
-    const settings = await saveConversationSettings(body.systemPrompt);
+    const body = (await request.json()) as {
+      systemPrompt?: unknown;
+      tts?: unknown;
+    };
+    const settings = await saveConversationSettings(body.systemPrompt, body.tts);
 
     return Response.json(toSettingsResponse(settings));
   } catch (caught) {

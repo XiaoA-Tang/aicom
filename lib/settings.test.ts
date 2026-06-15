@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SYSTEM_PROMPT, normalizeSystemPrompt } from "./settings";
+import {
+  createDefaultConversationSettings,
+  DEFAULT_SYSTEM_PROMPT,
+  normalizeSystemPrompt,
+  normalizeTtsSettings
+} from "./settings";
 
 describe("normalizeSystemPrompt", () => {
   it("trims usable prompt text", () => {
@@ -22,5 +27,43 @@ describe("normalizeSystemPrompt", () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain("禁止");
     expect(DEFAULT_SYSTEM_PROMPT).toContain("（挠了挠头）");
     expect(DEFAULT_SYSTEM_PROMPT).not.toContain("作为 AI 模型");
+  });
+});
+
+describe("normalizeTtsSettings", () => {
+  it("uses Maia as the default Qwen realtime voice", () => {
+    expect(createDefaultConversationSettings().tts).toEqual({
+      format: "wav",
+      instructions: "",
+      languageType: "Chinese",
+      model: "qwen3-tts-flash-realtime",
+      voice: "Maia"
+    });
+  });
+
+  it("normalizes editable TTS values", () => {
+    expect(
+      normalizeTtsSettings({
+        model: " qwen3-tts-instruct-flash-realtime ",
+        voice: " Maia ",
+        languageType: " Chinese ",
+        format: " wav ",
+        instructions: "  Natural daily chat.  "
+      })
+    ).toEqual({
+      format: "wav",
+      instructions: "Natural daily chat.",
+      languageType: "Chinese",
+      model: "qwen3-tts-instruct-flash-realtime",
+      voice: "Maia"
+    });
+  });
+
+  it("rejects unsupported TTS models", () => {
+    expect(() =>
+      normalizeTtsSettings({
+        model: "unknown-model"
+      })
+    ).toThrow("Unsupported TTS model");
   });
 });

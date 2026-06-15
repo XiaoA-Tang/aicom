@@ -30,7 +30,7 @@ npm run dev
 Temporary project artifacts belong in `.tmp/`.
 
 The default TTS provider is `dashscope-qwen-realtime`, using
-`qwen3-tts-flash-realtime` with `Cherry` voice and WAV output.
+`qwen3-tts-flash-realtime` with `Maia` voice and WAV output.
 
 ## Production
 

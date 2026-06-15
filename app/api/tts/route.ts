@@ -1,4 +1,5 @@
 import { synthesizeSpeech } from "@/lib/tts";
+import { getConversationSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
@@ -15,10 +16,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "text is required" }, { status: 400 });
     }
 
+    const settings = await getConversationSettings();
     const result = await synthesizeSpeech({
+      format: body.format || settings.tts.format,
+      instructions: settings.tts.instructions,
+      languageType: settings.tts.languageType,
+      model: settings.tts.model,
       text,
-      voice: body.voice,
-      format: body.format
+      voice: body.voice || settings.tts.voice
     });
 
     return new Response(new Uint8Array(result.audio), {
